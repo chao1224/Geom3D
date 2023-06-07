@@ -1,0 +1,1 @@
+from .SEGNN import SEGNNModel
