@@ -179,7 +179,11 @@ done
 done
 ```
 
-Now only the bash scripts for QM9 are available. We will release the complete version soon, together with Notebook demo.
+Now only the bash scripts for QM9 are available. We will release the complete version soon, together with Notebook demo. Please stay tuned.
+
+## Checkpoints
+
+Checkpoints for all the pretraining and downstream tasks will be released soon.
 
 ## Cite us
 
