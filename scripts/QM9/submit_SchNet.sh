@@ -17,10 +17,8 @@ export time=11
 
 
 for task in "${task_list[@]}"; do
-
 for lr in "${lr_list[@]}"; do
 for lr_scheduler in "${lr_scheduler_list[@]}"; do
-
 for emb_dim in "${emb_dim_list[@]}"; do
 for batch_size in "${batch_size_list[@]}"; do
 
