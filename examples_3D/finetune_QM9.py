@@ -495,7 +495,6 @@ def train(epoch, device, loader, optimizer):
             molecule_3D_repr = model(batch.x, batch.positions, batch)
 
         elif args.model_3d in ["NequIP", "Allegro"]:
-            # # TODO: will check how edge_index is constructured.
             data = {
                 "edge_index": batch.radius_edge_index,
                 "pos": batch.positions,
