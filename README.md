@@ -70,7 +70,9 @@ We cover three types of datasets:
 
 For dataset acquisition, please refer to the [data](./data) folder.
 
-## Representation Models
+## Overview of Models
+
+### Representation Models
 
 Geom3D includes the following representation models:
 - [SchNet, NeurIPS'18](https://papers.nips.cc/paper_files/paper/2017/hash/303ed4c69846ab36c2904d3ba8573050-Abstract.html)
@@ -110,7 +112,7 @@ We also include the following 7 1D models and 11 2D models (specifically for sma
 
 Notice that there is no pretraining considered at this stage. For geoemtric pretraining models, please check the following section.
 
-## Geometric Pretraining
+### Geometric Pretraining
 
 We include the following 14 geometric pretraining methods:
 
@@ -130,3 +132,68 @@ We include the following 14 geometric pretraining methods:
     - [GraphMVP, ICLR'22](https://openreview.net/forum?id=xQUe1pOKPam)
     - [3D InfoMax, ICML'22](https://proceedings.mlr.press/v162/stark22a.html)
     - [MoleculeSDE, ICML'23](https://arxiv.org/abs/2305.18407)
+
+## Scripts
+
+The python scripts can be found in `examples_3D`. We list the bash scripts (and hyperparameters) in `scripts`. For example, the bash script for SchNet on QM9 is:
+```
+cd examples_3D
+
+export model_3d=SchNet
+export dataset=QM9
+export task_list=(mu alpha homo lumo gap r2 zpve u0 u298 h298 g298 cv)
+
+export lr_list=(5e-4)
+export lr_scheduler_list=(CosineAnnealingLR)
+export split=customized_01
+export seed=42
+export emb_dim_list=(128 300)
+export batch_size_list=(128)
+
+export epochs=1000
+
+for task in "${task_list[@]}"; do
+for lr in "${lr_list[@]}"; do
+for lr_scheduler in "${lr_scheduler_list[@]}"; do
+for emb_dim in "${emb_dim_list[@]}"; do
+for batch_size in "${batch_size_list[@]}"; do
+
+    export output_model_dir=output/random/"$model_3d"/"$dataset"/"$task"_"$split"_"$seed"/"$lr"_"$lr_scheduler"_"$emb_dim"_"$batch_size"_"$epochs"
+    export output_file="$output_model_dir"/result.out
+    mkdir -p "$output_model_dir"
+
+    python finetune_QM9.py \
+    --model_3d="$model_3d" --dataset="$dataset" --epochs="$epochs" \
+    --task="$task" \
+    --split="$split" --seed="$seed" \
+    --batch_size="$batch_size" \
+    --emb_dim="$emb_dim" \
+    --lr="$lr" --lr_scheduler="$lr_scheduler" --no_eval_train --print_every_epoch=1 --num_workers=8 \
+    --output_model_dir="$output_model_dir" \
+    > "$output_file"
+    
+done
+done
+done
+done
+done
+```
+
+Now only the bash scripts for QM9 are available. We will release the complete version soon, together with Notebook demo. Please stay tuned.
+
+## Checkpoints
+
+Checkpoints for all the pretraining and downstream tasks will be released soon.
+
+## Cite us
+
+Feel free to cite this work if you find it useful to you!
+
+```
+@article{liu2023symmetry,
+    title={Symmetry-Informed Geometric Representation for Molecules, Proteins, and Crystalline Materials},
+    author={Liu, Shengchao and Du, Weitao and Li, Yanjing and Li, Zhuoxinran and Zheng, Zhiling and Duan, Chenru and Ma, Zhiming and Yaghi, Omar and Anandkumar, Anima and Borgs, Christian and others},
+    journal={arXiv preprint arXiv:2306.09375},
+    year={2023}
+}
+```
