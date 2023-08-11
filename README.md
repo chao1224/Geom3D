@@ -2,6 +2,8 @@
 
 Authors: Shengchao Liu, Weitao Du, Yanjing Li, Zhuoxinran Li, Zhiling Zheng, Chenru Duan, Zhiming Ma, Omar Yaghi, Anima Anandkumar, Christian Borgs, Jennifer Chayes, Hongyu Guo, Jian Tang
 
+[[ArXiv](https://arxiv.org/abs/2306.09375)]
+
 This is **Geom3D**, a platfrom for geometric modeling on 3D structures:
 <p align="center">
   <img src="./figure/pipeline.jpg" /> 
@@ -71,7 +73,6 @@ We cover three types of datasets:
 For dataset acquisition:
 - We provide a set of raw and processed dataset [HuggingFace](https://huggingface.co/datasets/chao1224/Geom3D_data). You can download the data using `python download_data.py` under `./data`.
 - Please refer to the [data](./data) folder for more details.
-
 
 ## Overview of Models
 
