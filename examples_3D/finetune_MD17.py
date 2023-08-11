@@ -33,329 +33,7 @@ def preprocess_input(one_hot, charges, charge_power, charge_scale):
     return atom_scalars
 
 
-def train(device, loader):
-    model.train()
-    if graph_pred_linear is not None:
-        graph_pred_linear.train()
-
-    loss_acc = 0
-    num_iters = len(loader)
-
-    if args.verbose:
-        L = tqdm(loader)
-    else:
-        L = loader
-
-    for step, batch_data in enumerate(L):
-        batch_data = batch_data.to(device)
-        positions = batch_data.positions
-        positions.requires_grad_()
-        x = batch_data.x
-
-        if args.model_3d == "SchNet":
-            molecule_3D_repr = model(x, positions, batch_data.batch)
-        elif args.model_3d == "DimeNetPlusPlus":
-            molecule_3D_repr = model(x, positions, batch_data.batch)
-        elif args.model_3d == "SphereNet":
-            molecule_3D_repr = model(x, positions, batch_data.batch)
-        elif args.model_3d == "PaiNN":
-            molecule_3D_repr = model(x, positions, batch_data.radius_edge_index, batch_data.batch)
-        elif args.model_3d == "GemNet":
-            molecule_3D_repr = model(x, positions, batch_data)
-        elif args.model_3d == "EGNN":
-            x_one_hot = F.one_hot(x, num_classes=node_class)
-            x = preprocess_input(
-                x_one_hot,
-                x,
-                charge_power=args.EGNN_charge_power,
-                charge_scale=node_class,
-            )
-            node_3D_repr = model(
-                x=x,
-                positions=positions,
-                edge_index=batch_data.radius_edge_index,
-                edge_attr=None,
-            )
-            molecule_3D_repr = global_mean_pool(node_3D_repr, batch_data.batch)
-        elif args.model_3d == "SEGNN":
-            molecule_3D_repr = model(batch_data)
-        elif args.model_3d in ["NequIP", "Allegro"]:
-            data = {
-                "atom_types": x,
-                "pos": positions,
-                "edge_index": batch_data.radius_edge_index,
-                "batch": batch_data.batch,
-            }
-            out = model(data)
-            molecule_3D_repr = out["total_energy"]
-        elif args.model_3d == "Equiformer":
-            molecule_3D_repr = model(node_atom=x, pos=positions, batch=batch_data.batch)
-
-        if graph_pred_linear is not None:
-            pred_energy = graph_pred_linear(molecule_3D_repr).squeeze(1)
-        else:
-            pred_energy = molecule_3D_repr.squeeze(1)
-
-        if args.energy_force_with_normalization:
-            pred_energy = pred_energy * FORCE_MEAN_TOTAL + ENERGY_MEAN_TOTAL * NUM_ATOM
-
-        pred_force = -grad(outputs=pred_energy, inputs=positions, grad_outputs=torch.ones_like(pred_energy), create_graph=True, retain_graph=True)[0]
-
-        actual_energy = batch_data.y
-        actual_force = batch_data.force
-
-        loss = args.md17_energy_coeff * criterion(pred_energy, actual_energy) + args.md17_force_coeff * criterion(pred_force, actual_force)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        loss_acc += loss.cpu().detach().item()
-
-        if args.lr_scheduler in ["CosineAnnealingWarmRestarts"]:
-            lr_scheduler.step(epoch - 1 + step / num_iters)
-
-    loss_acc /= len(loader)
-    if args.lr_scheduler in ["StepLR", "CosineAnnealingLR"]:
-        lr_scheduler.step()
-    elif args.lr_scheduler in ["ReduceLROnPlateau"]:
-        lr_scheduler.step(loss_acc)
-    return loss_acc
-
-
-def eval(device, loader):
-    model.eval()
-    if graph_pred_linear is not None:
-        graph_pred_linear.eval()
-    pred_energy_list, actual_energy_list = [], []
-    pred_force_list = torch.Tensor([]).to(device)
-    actual_force_list = torch.Tensor([]).to(device)
-
-    if args.verbose:
-        L = tqdm(loader)
-    else:
-        L = loader
-
-    for batch_data in L:
-        batch_data = batch_data.to(device)
-        positions = batch_data.positions
-        positions.requires_grad_()
-        x = batch_data.x
-
-        if args.model_3d == "SchNet":
-            molecule_3D_repr = model(x, positions, batch_data.batch)
-        elif args.model_3d == "DimeNetPlusPlus":
-            molecule_3D_repr = model(x, positions, batch_data.batch)
-        elif args.model_3d == "SphereNet":
-            molecule_3D_repr = model(x, positions, batch_data.batch)
-        elif args.model_3d == "PaiNN":
-            molecule_3D_repr = model(x, positions, batch_data.radius_edge_index, batch_data.batch)
-        elif args.model_3d == "GemNet":
-            molecule_3D_repr = model(x, positions, batch_data)
-        elif args.model_3d == "EGNN":
-            x_one_hot = F.one_hot(x, num_classes=node_class)
-            x = preprocess_input(
-                x_one_hot,
-                x,
-                charge_power=args.EGNN_charge_power,
-                charge_scale=node_class,
-            )
-            node_3D_repr = model(
-                x=x,
-                positions=positions,
-                edge_index=batch_data.radius_edge_index,
-                edge_attr=None,
-            )
-            molecule_3D_repr = global_mean_pool(node_3D_repr, batch_data.batch)
-        elif args.model_3d == "SEGNN":
-            molecule_3D_repr = model(batch_data)
-        elif args.model_3d in ["NequIP", "Allegro"]:
-            data = {
-                "atom_types": x,
-                "pos": positions,
-                "edge_index": batch_data.radius_edge_index,
-                "batch": batch_data.batch,
-            }
-            out = model(data)
-            molecule_3D_repr = out["total_energy"]
-        elif args.model_3d == "Equiformer":
-            molecule_3D_repr = model(node_atom=x, pos=positions, batch=batch_data.batch)
-
-        if graph_pred_linear is not None:
-            pred_energy = graph_pred_linear(molecule_3D_repr).squeeze(1)
-        else:
-            pred_energy = molecule_3D_repr.squeeze(1)
-
-        if args.energy_force_with_normalization:
-            pred_energy = pred_energy * FORCE_MEAN_TOTAL + ENERGY_MEAN_TOTAL * NUM_ATOM
-
-        force = -grad(outputs=pred_energy, inputs=positions, grad_outputs=torch.ones_like(pred_energy), create_graph=True, retain_graph=True)[0].detach_()
-
-        if torch.sum(torch.isnan(force)) != 0:
-            mask = torch.isnan(force)
-            force = force[~mask].reshape((-1, 3))
-            batch_data.force = batch_data.force[~mask].reshape((-1, 3))
-
-        pred_energy_list.append(pred_energy.cpu().detach())
-        actual_energy_list.append(batch_data.y.cpu())
-        pred_force_list = torch.cat([pred_force_list, force], dim=0)
-        actual_force_list = torch.cat([actual_force_list, batch_data.force], dim=0)
-
-    pred_energy_list = torch.cat(pred_energy_list, dim=0)
-    actual_energy_list = torch.cat(actual_energy_list, dim=0)
-    energy_mae = torch.mean(torch.abs(pred_energy_list - actual_energy_list)).cpu().item()
-    force_mae = torch.mean(torch.abs(pred_force_list - actual_force_list)).cpu().item()
-
-    return energy_mae, force_mae
-
-
-def load_model(model, graph_pred_linear, model_weight_file, load_latest=False):
-    print("Loading from {}".format(model_weight_file))
-
-    if load_latest:
-        model_weight = torch.load(model_weight_file)
-        model.load_state_dict(model_weight["model"])
-        if (graph_pred_linear is not None) and ("graph_pred_linear" in model_weight):
-            graph_pred_linear.load_state_dict(model_weight["graph_pred_linear"])
-
-    elif "MoleculeSDE" in model_weight_file:
-        model_weight = torch.load(model_weight_file)
-        if "model_3D" in model_weight:
-            model.load_state_dict(model_weight["model_3D"])
-        else:
-            model.load_state_dict(model_weight["model"])
-        if (graph_pred_linear is not None) and ("graph_pred_linear" in model_weight):
-            graph_pred_linear.load_state_dict(model_weight["graph_pred_linear"])
-
-    else:
-        model_weight = torch.load(model_weight_file)
-        model.load_state_dict(model_weight["model"])
-        if (graph_pred_linear is not None) and ("graph_pred_linear" in model_weight):
-            graph_pred_linear.load_state_dict(model_weight["graph_pred_linear"])
-    return
-
-
-def save_model(save_best):
-    if not args.output_model_dir == "":
-        if save_best:
-            print("save model with optimal loss")
-            output_model_path = os.path.join(args.output_model_dir, "model.pth")
-            saved_model_dict = {}
-            saved_model_dict["model"] = model.state_dict()
-            if graph_pred_linear is not None:
-                saved_model_dict["graph_pred_linear"] = graph_pred_linear.state_dict()
-            torch.save(saved_model_dict, output_model_path)
-
-        else:
-            print("save model in the last epoch")
-            output_model_path = os.path.join(args.output_model_dir, "model_final.pth")
-            saved_model_dict = {}
-            saved_model_dict["model"] = model.state_dict()
-            if graph_pred_linear is not None:
-                saved_model_dict["graph_pred_linear"] = graph_pred_linear.state_dict()
-            torch.save(saved_model_dict, output_model_path)
-    return
-
-
-if __name__ == "__main__":
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    device = (
-        torch.device("cuda:" + str(args.device))
-        if torch.cuda.is_available()
-        else torch.device("cpu")
-    )
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
-
-    if args.dataset == "md17":
-        data_root = "../data/md17"
-        dataset = DatasetMD17(data_root, task=args.task)
-        split_idx = dataset.get_idx_split(len(dataset.data.y), train_size=1000, valid_size=1000, seed=args.seed)
-    elif args.dataset == "rMD17":
-        data_root = "../data/rMD17"
-        dataset = DatasetrMD17(data_root, task=args.task, split_id=args.rMD17_split_id)
-        split_idx = dataset.get_idx_split()
-    print("train:", len(split_idx["train"]), split_idx["train"][:5])
-    print("valid:", len(split_idx["valid"]), split_idx["valid"][:5])
-    print("test:", len(split_idx["test"]), split_idx["test"][:5])
-
-    if args.model_3d == "PaiNN":
-        data_root = "../data/{}_{}/{}".format(args.dataset, args.PaiNN_radius_cutoff, args.task)
-        dataset = MoleculeDataset3DRadius(
-            data_root,
-            preprcessed_dataset=dataset,
-            radius=args.PaiNN_radius_cutoff
-        )
-    elif args.model_3d in ["NequIP", "Allegro"]:
-        # Will update this
-        data_root = "../data/{}_{}/{}".format(args.dataset, args.NequIP_radius_cutoff, args.task)
-        dataset = MoleculeDataset3DRadius(
-            data_root,
-            preprcessed_dataset=dataset,
-            radius=args.NequIP_radius_cutoff
-        )
-    elif args.model_3d == "EGNN":
-        data_root = "../data/{}_{}/{}".format(args.dataset, args.EGNN_radius_cutoff, args.task)
-        dataset = MoleculeDataset3DRadius(
-            data_root,
-            preprcessed_dataset=dataset,
-            radius=args.EGNN_radius_cutoff
-        )
-    elif args.model_3d == "SEGNN":
-        data_root = "../data/{}_{}/{}".format(args.dataset, args.SEGNN_radius, args.task)
-        dataset = MoleculeDataset3DRadius(
-            data_root,
-            preprcessed_dataset=dataset,
-            radius=args.SEGNN_radius
-        )
-    train_dataset, val_dataset, test_dataset = \
-        dataset[split_idx['train']], dataset[split_idx['valid']], dataset[split_idx['test']]
-
-    # TODO. Remove energy mean. Credit to:
-    # https://github.com/atomistic-machine-learning/SchNetpack/blob/master/src/examples/ethanol_example.py#L26
-    # https://github.com/atomistic-machine-learning/SchNetpack/blob/master/examples/tutorials/tutorial_03_force_models.ipynb
-    # https://github.com/atomistic-machine-learning/SchNetpack/blob/dev/src/SchNetpack/transform/atomistic.py#L56
-    # Also credit to NequIP discussion
-    # https://github.com/mir-group/NequIP/discussions/131
-    # https://github.com/mir-group/NequIP/discussions/259
-    # And our own repo
-    # https://github.com/chao1224/3D_Benchmark_dev/issues/41
-    ENERGY_MEAN_TOTAL = 0
-    FORCE_MEAN_TOTAL = 0
-    NUM_ATOM = None
-    for data in train_dataset:
-        energy = data.y
-        force = data.force
-        NUM_ATOM = force.size()[0]
-        energy_mean = energy / NUM_ATOM
-        ENERGY_MEAN_TOTAL += energy_mean
-        force_rms = torch.sqrt(torch.mean(force.square()))
-        FORCE_MEAN_TOTAL += force_rms
-    ENERGY_MEAN_TOTAL /= len(train_dataset)
-    FORCE_MEAN_TOTAL /= len(train_dataset)
-    ENERGY_MEAN_TOTAL = ENERGY_MEAN_TOTAL.to(device)
-    FORCE_MEAN_TOTAL = FORCE_MEAN_TOTAL.to(device)
-
-    DataLoaderClass = DataLoader
-    dataloader_kwargs = {}
-    if args.model_3d == "GemNet":
-        DataLoaderClass = DataLoaderGemNet
-        dataloader_kwargs = {"cutoff": args.GemNet_cutoff, "int_cutoff": args.GemNet_int_cutoff, "triplets_only": args.GemNet_triplets_only}
-
-    train_loader = DataLoaderClass(train_dataset, args.MD17_train_batch_size, shuffle=True, num_workers=args.num_workers, **dataloader_kwargs)
-    val_loader = DataLoaderClass(val_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers, **dataloader_kwargs)
-    test_loader = DataLoaderClass(test_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers, **dataloader_kwargs)
-
-    node_class = 119
-    num_tasks = 1
-
-    # set up model
-    if args.JK == "concat":
-        intermediate_dim = (args.num_layer + 1) * args.emb_dim
-    else:
-        intermediate_dim = args.emb_dim
-
+def model_setup():
     if args.model_3d == "SchNet":
         model = SchNet(
             hidden_channels=args.emb_dim,
@@ -366,7 +44,7 @@ if __name__ == "__main__":
             readout=args.SchNet_readout,
             node_class=node_class,
         )
-        graph_pred_linear = torch.nn.Linear(intermediate_dim, num_tasks)
+        graph_pred_linear = torch.nn.Linear(args.emb_dim, num_tasks)
 
     elif args.model_3d == "DimeNetPlusPlus":
         model = DimeNetPlusPlus(
@@ -494,19 +172,12 @@ if __name__ == "__main__":
             ],
             dataset_statistics_stride=1,
             chemical_symbols=["H", "C", "N", "O", "F", "Na", "Cl", "He", "P", "B"],
-
             r_max=args.NequIP_radius_cutoff,
             num_layers=5,
-                        
             chemical_embedding_irreps_out="64x0e",
-            # feature_irreps_hidden="64x0o+64x0e+64x1o+64x1e+64x2o+64x2e+64x3o+64x3e",
-            # irreps_edge_sh="0e+1o+2e+3o",
-            # conv_to_output_hidden_irreps_out="16x0e",
-
             l_max=1,
             parity=True,
             num_features=64,
-
             nonlinearity_type="gate",
             nonlinearity_scalars={'e': 'silu', 'o': 'tanh'},
             nonlinearity_gates={'e': 'silu', 'o': 'tanh'},
@@ -577,6 +248,320 @@ if __name__ == "__main__":
 
     else:
         raise Exception("3D model {} not included.".format(args.model_3d))
+
+    return
+
+def train(device, loader):
+    model.train()
+    if graph_pred_linear is not None:
+        graph_pred_linear.train()
+
+    loss_acc = 0
+    num_iters = len(loader)
+
+    if args.verbose:
+        L = tqdm(loader)
+    else:
+        L = loader
+
+    for step, batch in enumerate(L):
+        batch = batch.to(device)
+        positions = batch.positions
+        positions.requires_grad_()
+        x = batch.x
+
+        if args.model_3d == "SchNet":
+            molecule_3D_repr = model(x, positions, batch.batch)
+        elif args.model_3d == "DimeNetPlusPlus":
+            molecule_3D_repr = model(x, positions, batch.batch)
+        elif args.model_3d == "SphereNet":
+            molecule_3D_repr = model(x, positions, batch.batch)
+        elif args.model_3d == "PaiNN":
+            molecule_3D_repr = model(x, positions, batch.radius_edge_index, batch.batch)
+        elif args.model_3d == "GemNet":
+            molecule_3D_repr = model(x, positions, batch)
+        elif args.model_3d == "EGNN":
+            x_one_hot = F.one_hot(x, num_classes=node_class)
+            x = preprocess_input(
+                x_one_hot,
+                x,
+                charge_power=args.EGNN_charge_power,
+                charge_scale=node_class,
+            )
+            node_3D_repr = model(
+                x=x,
+                positions=positions,
+                edge_index=batch.radius_edge_index,
+                edge_attr=None,
+            )
+            molecule_3D_repr = global_mean_pool(node_3D_repr, batch.batch)
+        elif args.model_3d == "SEGNN":
+            molecule_3D_repr = model(batch)
+        elif args.model_3d in ["NequIP", "Allegro"]:
+            data = {
+                "atom_types": x,
+                "pos": positions,
+                "edge_index": batch.radius_edge_index,
+                "batch": batch.batch,
+            }
+            out = model(data)
+            molecule_3D_repr = out["total_energy"]
+        elif args.model_3d == "Equiformer":
+            molecule_3D_repr = model(node_atom=x, pos=positions, batch=batch.batch)
+
+        if graph_pred_linear is not None:
+            pred_energy = graph_pred_linear(molecule_3D_repr).squeeze(1)
+        else:
+            pred_energy = molecule_3D_repr.squeeze(1)
+
+        if args.energy_force_with_normalization:
+            pred_energy = pred_energy * FORCE_MEAN_TOTAL + ENERGY_MEAN_TOTAL * NUM_ATOM
+
+        pred_force = -grad(outputs=pred_energy, inputs=positions, grad_outputs=torch.ones_like(pred_energy), create_graph=True, retain_graph=True)[0]
+
+        actual_energy = batch.y
+        actual_force = batch.force
+
+        loss = args.md17_energy_coeff * criterion(pred_energy, actual_energy) + args.md17_force_coeff * criterion(pred_force, actual_force)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        loss_acc += loss.cpu().detach().item()
+
+        if args.lr_scheduler in ["CosineAnnealingWarmRestarts"]:
+            lr_scheduler.step(epoch - 1 + step / num_iters)
+
+    loss_acc /= len(loader)
+    if args.lr_scheduler in ["StepLR", "CosineAnnealingLR"]:
+        lr_scheduler.step()
+    elif args.lr_scheduler in ["ReduceLROnPlateau"]:
+        lr_scheduler.step(loss_acc)
+    return loss_acc
+
+
+def eval(device, loader):
+    model.eval()
+    if graph_pred_linear is not None:
+        graph_pred_linear.eval()
+    pred_energy_list, actual_energy_list = [], []
+    pred_force_list = torch.Tensor([]).to(device)
+    actual_force_list = torch.Tensor([]).to(device)
+
+    if args.verbose:
+        L = tqdm(loader)
+    else:
+        L = loader
+
+    for batch in L:
+        batch = batch.to(device)
+        positions = batch.positions
+        positions.requires_grad_()
+        x = batch.x
+
+        if args.model_3d == "SchNet":
+            molecule_3D_repr = model(x, positions, batch.batch)
+        elif args.model_3d == "DimeNetPlusPlus":
+            molecule_3D_repr = model(x, positions, batch.batch)
+        elif args.model_3d == "SphereNet":
+            molecule_3D_repr = model(x, positions, batch.batch)
+        elif args.model_3d == "PaiNN":
+            molecule_3D_repr = model(x, positions, batch.radius_edge_index, batch.batch)
+        elif args.model_3d == "GemNet":
+            molecule_3D_repr = model(x, positions, batch)
+        elif args.model_3d == "EGNN":
+            x_one_hot = F.one_hot(x, num_classes=node_class)
+            x = preprocess_input(
+                x_one_hot,
+                x,
+                charge_power=args.EGNN_charge_power,
+                charge_scale=node_class,
+            )
+            node_3D_repr = model(
+                x=x,
+                positions=positions,
+                edge_index=batch.radius_edge_index,
+                edge_attr=None,
+            )
+            molecule_3D_repr = global_mean_pool(node_3D_repr, batch.batch)
+        elif args.model_3d == "SEGNN":
+            molecule_3D_repr = model(batch)
+        elif args.model_3d in ["NequIP", "Allegro"]:
+            data = {
+                "atom_types": x,
+                "pos": positions,
+                "edge_index": batch.radius_edge_index,
+                "batch": batch.batch,
+            }
+            out = model(data)
+            molecule_3D_repr = out["total_energy"]
+        elif args.model_3d == "Equiformer":
+            molecule_3D_repr = model(node_atom=x, pos=positions, batch=batch.batch)
+
+        if graph_pred_linear is not None:
+            pred_energy = graph_pred_linear(molecule_3D_repr).squeeze(1)
+        else:
+            pred_energy = molecule_3D_repr.squeeze(1)
+
+        if args.energy_force_with_normalization:
+            pred_energy = pred_energy * FORCE_MEAN_TOTAL + ENERGY_MEAN_TOTAL * NUM_ATOM
+
+        force = -grad(outputs=pred_energy, inputs=positions, grad_outputs=torch.ones_like(pred_energy), create_graph=True, retain_graph=True)[0].detach_()
+
+        if torch.sum(torch.isnan(force)) != 0:
+            mask = torch.isnan(force)
+            force = force[~mask].reshape((-1, 3))
+            batch.force = batch.force[~mask].reshape((-1, 3))
+
+        pred_energy_list.append(pred_energy.cpu().detach())
+        actual_energy_list.append(batch.y.cpu())
+        pred_force_list = torch.cat([pred_force_list, force], dim=0)
+        actual_force_list = torch.cat([actual_force_list, batch.force], dim=0)
+
+    pred_energy_list = torch.cat(pred_energy_list, dim=0)
+    actual_energy_list = torch.cat(actual_energy_list, dim=0)
+    energy_mae = torch.mean(torch.abs(pred_energy_list - actual_energy_list)).cpu().item()
+    force_mae = torch.mean(torch.abs(pred_force_list - actual_force_list)).cpu().item()
+
+    return energy_mae, force_mae
+
+
+def load_model(model, graph_pred_linear, model_weight_file, load_latest=False):
+    print("Loading from {}".format(model_weight_file))
+
+    if load_latest:
+        model_weight = torch.load(model_weight_file)
+        model.load_state_dict(model_weight["model"])
+        if (graph_pred_linear is not None) and ("graph_pred_linear" in model_weight):
+            graph_pred_linear.load_state_dict(model_weight["graph_pred_linear"])
+
+    elif "MoleculeSDE" in model_weight_file:
+        model_weight = torch.load(model_weight_file)
+        if "model_3D" in model_weight:
+            model.load_state_dict(model_weight["model_3D"])
+        else:
+            model.load_state_dict(model_weight["model"])
+        if (graph_pred_linear is not None) and ("graph_pred_linear" in model_weight):
+            graph_pred_linear.load_state_dict(model_weight["graph_pred_linear"])
+
+    else:
+        model_weight = torch.load(model_weight_file)
+        model.load_state_dict(model_weight["model"])
+        if (graph_pred_linear is not None) and ("graph_pred_linear" in model_weight):
+            graph_pred_linear.load_state_dict(model_weight["graph_pred_linear"])
+    return
+
+
+def save_model(save_best):
+    if not args.output_model_dir == "":
+        if save_best:
+            print("save model with optimal loss")
+            output_model_path = os.path.join(args.output_model_dir, "model.pth")
+            saved_model_dict = {}
+            saved_model_dict["model"] = model.state_dict()
+            if graph_pred_linear is not None:
+                saved_model_dict["graph_pred_linear"] = graph_pred_linear.state_dict()
+            torch.save(saved_model_dict, output_model_path)
+
+        else:
+            print("save model in the last epoch")
+            output_model_path = os.path.join(args.output_model_dir, "model_final.pth")
+            saved_model_dict = {}
+            saved_model_dict["model"] = model.state_dict()
+            if graph_pred_linear is not None:
+                saved_model_dict["graph_pred_linear"] = graph_pred_linear.state_dict()
+            torch.save(saved_model_dict, output_model_path)
+    return
+
+
+if __name__ == "__main__":
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    device = (
+        torch.device("cuda:" + str(args.device))
+        if torch.cuda.is_available()
+        else torch.device("cpu")
+    )
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
+    if args.dataset == "MD17":
+        data_root = "../data/MD17"
+        dataset = DatasetMD17(data_root, task=args.task)
+        split_idx = dataset.get_idx_split(len(dataset.data.y), train_size=1000, valid_size=1000, seed=args.seed)
+    elif args.dataset == "rMD17":
+        data_root = "../data/rMD17"
+        dataset = DatasetrMD17(data_root, task=args.task, split_id=args.rMD17_split_id)
+        split_idx = dataset.get_idx_split()
+    print("train:", len(split_idx["train"]), split_idx["train"][:5])
+    print("valid:", len(split_idx["valid"]), split_idx["valid"][:5])
+    print("test:", len(split_idx["test"]), split_idx["test"][:5])
+
+    if args.model_3d == "PaiNN":
+        data_root = "../data/{}_{}/{}".format(args.dataset, args.PaiNN_radius_cutoff, args.task)
+        dataset = MoleculeDataset3DRadius(
+            data_root,
+            preprcessed_dataset=dataset,
+            radius=args.PaiNN_radius_cutoff
+        )
+    elif args.model_3d in ["NequIP", "Allegro"]:
+        # Will update this
+        data_root = "../data/{}_{}/{}".format(args.dataset, args.NequIP_radius_cutoff, args.task)
+        dataset = MoleculeDataset3DRadius(
+            data_root,
+            preprcessed_dataset=dataset,
+            radius=args.NequIP_radius_cutoff
+        )
+    elif args.model_3d == "EGNN":
+        data_root = "../data/{}_{}/{}".format(args.dataset, args.EGNN_radius_cutoff, args.task)
+        dataset = MoleculeDataset3DRadius(
+            data_root,
+            preprcessed_dataset=dataset,
+            radius=args.EGNN_radius_cutoff
+        )
+    elif args.model_3d == "SEGNN":
+        data_root = "../data/{}_{}/{}".format(args.dataset, args.SEGNN_radius, args.task)
+        dataset = MoleculeDataset3DRadius(
+            data_root,
+            preprcessed_dataset=dataset,
+            radius=args.SEGNN_radius
+        )
+    train_dataset, val_dataset, test_dataset = \
+        dataset[split_idx['train']], dataset[split_idx['valid']], dataset[split_idx['test']]
+
+    # Remove energy mean.
+    ENERGY_MEAN_TOTAL = 0
+    FORCE_MEAN_TOTAL = 0
+    NUM_ATOM = None
+    for data in train_dataset:
+        energy = data.y
+        force = data.force
+        NUM_ATOM = force.size()[0]
+        energy_mean = energy / NUM_ATOM
+        ENERGY_MEAN_TOTAL += energy_mean
+        force_rms = torch.sqrt(torch.mean(force.square()))
+        FORCE_MEAN_TOTAL += force_rms
+    ENERGY_MEAN_TOTAL /= len(train_dataset)
+    FORCE_MEAN_TOTAL /= len(train_dataset)
+    ENERGY_MEAN_TOTAL = ENERGY_MEAN_TOTAL.to(device)
+    FORCE_MEAN_TOTAL = FORCE_MEAN_TOTAL.to(device)
+
+    DataLoaderClass = DataLoader
+    dataloader_kwargs = {}
+    if args.model_3d == "GemNet":
+        DataLoaderClass = DataLoaderGemNet
+        dataloader_kwargs = {"cutoff": args.GemNet_cutoff, "int_cutoff": args.GemNet_int_cutoff, "triplets_only": args.GemNet_triplets_only}
+
+    train_loader = DataLoaderClass(train_dataset, args.MD17_train_batch_size, shuffle=True, num_workers=args.num_workers, **dataloader_kwargs)
+    val_loader = DataLoaderClass(val_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers, **dataloader_kwargs)
+    test_loader = DataLoaderClass(test_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers, **dataloader_kwargs)
+
+    node_class = 119
+    num_tasks = 1
+
+    # set up model
+    model, graph_pred_linear = model_setup()
 
     if args.input_model_file is not "":
         load_model(model, graph_pred_linear, args.input_model_file)

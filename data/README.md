@@ -1,6 +1,8 @@
-# Datasets
+# Specifications of Dataset Download in Geom3D
 
-## PCQM4M
+We provide both the raw and processed data at [this HuggingFace link](https://huggingface.co/datasets/chao1224/Geom3D_data).
+
+## PCQM4Mv2
 
 ```
 mkdir -p pcqm4mv2/raw
@@ -28,14 +30,13 @@ tar -xvf rdkit_folder.tar.gz
 
 Install it following the google drive link [here](https://github.com/divelab/MoleculeX/tree/molx/Molecule3D).
 
-
 ## QM9
 
-Automatically installed under folder `./molecule_datasets/qm9/raw`.
+Automatically installed under folder `.QM9/raw`.
 
 ## MD17
 
-Automatically installed under folder `./md17`.
+Automatically installed under folder `./MD17`.
 
 In March 2023 (or even earlier), they updated the MD17 FTP site, and the previous datasets are missing. We may need to keep and upload a version to the website.
 
@@ -106,7 +107,7 @@ mkdir -p ./molecule_datasets/cep/raw
 mv cep-processed.csv ./molecule_datasets/cep/raw/cep.csv
 ```
 
-## EC \& FOLD
+## EC & FOLD
 Check this [link](https://github.com/phermosilla/IEConv_proteins#download-the-preprocessed-datasets).
 
 - `ProtFunct` is for task `EC`
