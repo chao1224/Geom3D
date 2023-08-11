@@ -68,7 +68,10 @@ We cover three types of datasets:
     - MatBench
     - QMOF
 
-For dataset acquisition, please refer to the [data](./data) folder.
+For dataset acquisition:
+- We provide a set of raw and processed dataset [HuggingFace](https://huggingface.co/datasets/chao1224/Geom3D_data). You can download the data using `python download_data.py` under `./data`.
+- Please refer to the [data](./data) folder for more details.
+
 
 ## Overview of Models
 

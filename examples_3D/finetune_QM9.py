@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 
 from config import args
-from Geom3D.models import EGNN, SEGNN, TFN, DimeNet, DimeNetPlusPlus, SchNet, SE3Transformer, SphereNet, PaiNN, GemNet, EquiformerEnergy
+from Geom3D.models import SchNet, DimeNet, DimeNetPlusPlus, TFN, SE3Transformer, EGNN, SphereNet, SEGNN, PaiNN, GemNet, EquiformerEnergy
 from Geom3D.datasets import MoleculeDatasetQM9, MoleculeDataset3DRadius, MoleculeDataset3DFull, MoleculeDatasetOneAtom, MoleculeDataset3DRemoveCenter
 from Geom3D.dataloaders import DataLoaderGemNet
 from splitters import qm9_random_customized_01, qm9_random_customized_02
@@ -75,7 +75,7 @@ def model_setup():
             readout=args.SchNet_readout,
             node_class=node_class,
         )
-        graph_pred_linear = torch.nn.Linear(intermediate_dim, num_tasks)
+        graph_pred_linear = torch.nn.Linear(args.emb_dim, num_tasks)
 
     elif args.model_3d == "DimeNet":
         model = DimeNet(
@@ -380,14 +380,6 @@ def load_model(model, graph_pred_linear, model_weight_file):
 
         model.load_state_dict(model_weight[tag])
         
-        # pretrained_dict = {}
-        # for key, value in model_weight["AE_2D_3D_model"].items():
-        #     if not key.startswith("model.{}.".format(tag)):
-        #         continue
-        #     neo_key = key.replace("model.{}.".format(tag), "")
-        #     pretrained_dict[neo_key] = value
-        # model.load_state_dict(pretrained_dict)
-
     else:
         model_weight = torch.load(model_weight_file)
         model.load_state_dict(model_weight["model"])
@@ -661,8 +653,8 @@ if __name__ == "__main__":
         rotation_transform = RandomRotation()
 
     num_tasks = 1
-    assert args.dataset == "qm9"
-    data_root = "../data/molecule_datasets/{}".format(args.dataset)
+    assert args.dataset == "QM9"
+    data_root = "../data/{}".format(args.dataset)
     dataset = MoleculeDatasetQM9(
         data_root,
         dataset=args.dataset,
@@ -673,28 +665,27 @@ if __name__ == "__main__":
 
     ##### Dataset wrapper for graph with radius. #####
     if args.model_3d == "EGNN":
-        data_root = "../data/molecule_datasets/{}_full".format(args.dataset)
+        data_root = "../data/{}_full".format(args.dataset)
         dataset = MoleculeDataset3DFull(
             data_root,
             preprcessed_dataset=dataset
         )
     elif args.model_3d == "SEGNN":
-        data_root = "../data/molecule_datasets/{}_{}".format(args.dataset, args.SEGNN_radius)
+        data_root = "../data/{}_{}".format(args.dataset, args.SEGNN_radius)
         dataset = MoleculeDataset3DRadius(
             data_root,
             preprcessed_dataset=dataset,
             radius=args.SEGNN_radius
         )
     elif args.model_3d == "PaiNN":
-        data_root = "../data/molecule_datasets/{}_{}".format(args.dataset, args.PaiNN_radius_cutoff)
+        data_root = "../data/{}_{}".format(args.dataset, args.PaiNN_radius_cutoff)
         dataset = MoleculeDataset3DRadius(
             data_root,
             preprcessed_dataset=dataset,
             radius=args.PaiNN_radius_cutoff
         )
     elif args.model_3d in ["NequIP", "Allegro"]:
-        # Will update this
-        data_root = "../data/molecule_datasets/{}_{}".format(args.dataset, args.NequIP_radius_cutoff)
+        data_root = "../data/{}_{}".format(args.dataset, args.NequIP_radius_cutoff)
         dataset = MoleculeDataset3DRadius(
             data_root,
             preprcessed_dataset=dataset,
@@ -703,7 +694,6 @@ if __name__ == "__main__":
     
     if args.only_one_atom_type:
         data_root = "{}_one_atom".format(dataset.root)
-        print("neo root", data_root)
         dataset = MoleculeDatasetOneAtom(
             data_root,
             preprcessed_dataset=dataset
@@ -715,13 +705,6 @@ if __name__ == "__main__":
         train_dataset.std()[task_id].item(),
     )
     print("Train mean: {}\tTrain std: {}".format(TRAIN_mean, TRAIN_std))
-
-    if args.loss == "mse":
-        criterion = nn.MSELoss()
-    elif args.loss == "mae":
-        criterion = nn.L1Loss()
-    else:
-        raise ValueError("Loss {} not included.".format(args.loss))
 
     DataLoaderClass = DataLoader
     dataloader_kwargs = {}
@@ -751,12 +734,6 @@ if __name__ == "__main__":
         **dataloader_kwargs
     )
 
-    # set up model
-    if args.JK == "concat":
-        intermediate_dim = (args.num_layer + 1) * args.emb_dim
-    else:
-        intermediate_dim = args.emb_dim
-
     node_class, edge_class = 119, 5
     model, graph_pred_linear = model_setup()
 
@@ -767,6 +744,13 @@ if __name__ == "__main__":
     if graph_pred_linear is not None:
         graph_pred_linear.to(device)
     print(graph_pred_linear)
+
+    if args.loss == "mse":
+        criterion = nn.MSELoss()
+    elif args.loss == "mae":
+        criterion = nn.L1Loss()
+    else:
+        raise ValueError("Loss {} not included.".format(args.loss))
 
     # set up optimizer
     # different learning rate for different part of GNN
