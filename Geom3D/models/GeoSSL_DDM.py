@@ -43,9 +43,9 @@ class MultiLayerPerceptron(nn.Module):
         return x
 
 
-class NCSN_model(torch.nn.Module):
+class GeoSSL_DDM(torch.nn.Module):
     def __init__(self, emb_dim, sigma_begin, sigma_end, num_noise_level, noise_type, anneal_power):
-        super(NCSN_model, self).__init__()
+        super(GeoSSL_DDM, self).__init__()
 
         self.anneal_power = anneal_power
 
@@ -58,7 +58,7 @@ class NCSN_model(torch.nn.Module):
 
         return
     
-    def forward(self, data, node_feature, distance, debug=False):
+    def forward(self, data, node_feature, distance):
         self.device = self.sigmas.device
 
         node2graph = data.batch
@@ -88,11 +88,4 @@ class NCSN_model(torch.nn.Module):
         loss = scatter_add(loss, edge2graph) # (num_graph)
 
         loss = loss.mean()
-
-        if debug:
-            print("distance_feature", distance_feature[:3])
-            print("perturbed_distance", perturbed_distance[:10].squeeze())
-            print("distance", distance[:10].squeeze())
-            print("target", target[:10].squeeze())
-            print("scores", scores[:10].squeeze())
         return loss

@@ -23,9 +23,9 @@ loss_func = {
 }
 
 
-class NCSN_equivariant_model(torch.nn.Module):
+class GeoSSL_PDM(torch.nn.Module):
     def __init__(self, emb_dim, sigma_begin, sigma_end, num_noise_level, noise_type, anneal_power):
-        super(NCSN_equivariant_model, self).__init__()
+        super(GeoSSL_PDM, self).__init__()
         self.emb_dim = emb_dim
         self.noise_type = noise_type
         self.anneal_power = anneal_power

@@ -27,8 +27,8 @@ from .ProNet import ProNet
 
 from .BERT import BertForSequenceRegression
 
-from .NCSN import NCSN_model
-from .NCSN_Equivariant import NCSN_equivariant_model
+from .GeoSSL_DDM import GeoSSL_DDM
+from .GeoSSL_PDM import GeoSSL_PDM
 
 from .molecule_gnn_model import GNN, GNN_graphpred
 from .molecule_gnn_model_simplified import GNNSimplified
