@@ -5,19 +5,20 @@ from tqdm import tqdm
 from sklearn.preprocessing import normalize
 import h5py
 
-import torch
+import torch, math
 import torch.nn.functional as F
+import torch_cluster
 
 from torch_geometric.data import Data
 from torch_geometric.data import InMemoryDataset
 
 
-class DatasetFOLD(InMemoryDataset):
+class DatasetECSingle(InMemoryDataset):
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None, split='train'):
         self.split = split
         self.root = root
  
-        super(DatasetFOLD, self).__init__(
+        super(DatasetECSingle, self).__init__(
             root, transform, pre_transform, pre_filter)
         
         self.transform, self.pre_transform, self.pre_filter = transform, pre_transform, pre_filter
@@ -25,7 +26,7 @@ class DatasetFOLD(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        name = 'processed_FOLD'
+        name = 'processed_ECSingle'
         return osp.join(self.root, name, self.split)
 
     @property
@@ -177,33 +178,46 @@ class DatasetFOLD(InMemoryDataset):
         data.coords_n = pos_n
         data.coords_c = pos_c
         data.x = atom_names
-        data.pos = torch.tensor(atom_pos)
+        data.atom_pos = torch.tensor(atom_pos)
         data.num_nodes = len(pos_ca)
 
         h5File.close()
 
         return data
-
+    
     def process(self):  
         print('Beginning Processing ...')
 
         # Load the file with the list of functions.
-        classes_ = {}
-        with open(self.root+"/class_map.txt", 'r') as mFile:
+        functions_ = []
+        with open(self.root+"/unique_functions.txt", 'r') as mFile:
             for line in mFile:
-                lineList = line.rstrip().split('\t')
-                classes_[lineList[0]] = int(lineList[1])
-
+                functions_.append(line.rstrip())
+        
         # Get the file list.
-        fileList_ = []
-        cathegories_ = []
+        if self.split == "Train":
+            splitFile = "/training.txt"
+        elif self.split == "Val":
+            splitFile = "/validation.txt"
+        elif self.split == "Test":
+            splitFile = "/testing.txt"
 
-        with open(self.root+"/"+self.split+".txt", 'r') as mFile:
-            for curLine in mFile:
-                    splitLine = curLine.rstrip().split('\t')
-                    curClass = classes_[splitLine[-1]]
-                    fileList_.append(self.root+"/"+self.split+"/"+splitLine[0])
-                    cathegories_.append(curClass)
+        proteinNames_ = []
+        fileList_ = []
+        with open(self.root+splitFile, 'r') as mFile:
+            for line in mFile:
+                proteinNames_.append(line.rstrip())
+                fileList_.append(self.root+"/data/"+line.rstrip())
+        print("current split {}, data size {}".format(self.split, len(fileList_)))
+        
+        # Load the functions.
+        print("Reading protein functions")
+        protFunct_ = {}
+        with open(self.root+"/chain_functions.txt", 'r') as mFile:
+            for line in mFile:
+                splitLine = line.rstrip().split(',')
+                if splitLine[0] in proteinNames_: 
+                    protFunct_[splitLine[0]] = int(splitLine[1])
 
         # Load the dataset
         print("Reading the data")
@@ -211,12 +225,13 @@ class DatasetFOLD(InMemoryDataset):
             warnings.simplefilter("ignore")
             data_list = []
             for fileIter, curFile in tqdm(enumerate(fileList_)):
+                print(curFile)
                 fileName = curFile.split('/')[-1]
                 protein = self.extract_protein_data(curFile) 
                 protein.id = fileName           
-                protein.y = torch.tensor(cathegories_[fileIter])
+                protein.y = torch.tensor(protFunct_[proteinNames_[fileIter]])
                 if not protein.seq is None:
                     data_list.append(protein)     
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
-        print('Done!')      
+        print('Done!')

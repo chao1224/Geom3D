@@ -2,6 +2,7 @@
 
 import math
 from typing import Type, Any, Callable, Union, List, Optional
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -15,7 +16,7 @@ from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.typing import Adj, OptTensor, PairOptTensor, PairTensor
 from torch_geometric.utils import add_self_loops, remove_self_loops
 import torch_geometric.transforms as T
-from torch_geometric.nn import MLP, fps, global_max_pool, global_mean_pool, radius
+from torch_geometric.nn import fps, global_max_pool, global_mean_pool, radius
 from torch_geometric.nn.pool import avg_pool, max_pool
 import torch.optim as optim
 from torch_geometric.loader import DataLoader
@@ -299,7 +300,7 @@ class BasicBlock(nn.Module):
         out = self.output(x) + identity
         return out
 
-class CDConv(nn.Module):
+class CD_Convolution(nn.Module):
     def __init__(self,
                  geometric_radii: List[float],
                  sequential_kernel_size: float,
@@ -316,7 +317,7 @@ class CDConv(nn.Module):
 
         assert (len(geometric_radii) == len(channels)), "Model: 'geometric_radii' and 'channels' should have the same number of elements!"
 
-        self.embedding = torch.nn.Embedding(num_embeddings=21, embedding_dim=embedding_dim)
+        self.embedding = torch.nn.Embedding(num_embeddings=26, embedding_dim=embedding_dim)
         self.local_mean_pool = AvgPooling()
 
         layers = []
@@ -349,9 +350,30 @@ class CDConv(nn.Module):
                               out_channels=num_classes,
                               batch_norm=batch_norm,
                               dropout=dropout)
+        
+    def orientation_CDConv(self, pos):
+        u = torch.nn.functional.normalize(pos[1:,:] - pos[:-1,:], dim=1)
+        u1 = u[1:,:]
+        u2 = u[:-1, :]
+        b = torch.nn.functional.normalize(u2 - u1, dim=1)
+        n = torch.nn.functional.normalize(torch.cross(u2, u1, dim=1), dim=1)
+        o = torch.nn.functional.normalize(torch.cross(b, n, dim=1), dim=1)
+        ori = torch.stack([b, n, o], dim=1)
+        return torch.cat([ori[0].unsqueeze(0), ori, ori[-1].unsqueeze(0)], dim=0)
 
-    def forward(self, data):
-        x, pos, seq, ori, batch = (self.embedding(data.x), data.pos, data.seq, data.ori, data.batch)
+    def forward(self, data, split=None):
+        pos = data.coords_ca
+        device = pos.device
+
+        if split == "training":
+            pos = pos + torch.normal(0.0, 0.05, size=pos.shape, device=device, dtype=pos.dtype)
+
+        seq_idx = torch.arange(pos.shape[0], device=device).unsqueeze(1).float()
+        center = torch.sum(pos, dim=0, keepdim=True)/pos.shape[0]
+        pos = pos - center
+        ori = self.orientation_CDConv(pos)
+
+        x, pos, seq, ori, batch = (self.embedding(data.seq), pos, seq_idx, ori, data.batch)
 
         for i, layer in enumerate(self.layers):
             x = layer(x, pos, seq, ori, batch)
@@ -359,6 +381,7 @@ class CDConv(nn.Module):
                 x = global_mean_pool(x, batch)
             elif i % 2 == 1:
                 x, pos, seq, ori, batch = self.local_mean_pool(x, pos, seq, ori, batch)
+                seq = seq.to(device)
 
         out = self.classifier(x)
 

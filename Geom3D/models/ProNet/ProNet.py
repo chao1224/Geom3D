@@ -352,7 +352,7 @@ class ProNet(nn.Module):
     def pos_emb(self, edge_index, num_pos_emb=16):
         # From https://github.com/jingraham/neurips19-graph-protein-design
         d = edge_index[0] - edge_index[1]
-     
+
         frequency = torch.exp(
             torch.arange(0, num_pos_emb, 2, dtype=torch.float32, device=edge_index.device)
             * -(np.log(10000.0) / num_pos_emb)
@@ -362,12 +362,12 @@ class ProNet(nn.Module):
         return E
 
     def forward(self, batch_data):
+        z, pos, batch = batch_data.seq, batch_data.coords_ca, batch_data.batch
 
-        z, pos, batch = torch.squeeze(batch_data.x.long()), batch_data.coords_ca, batch_data.batch
         pos_n = batch_data.coords_n
         pos_c = batch_data.coords_c
-        bb_embs = batch_data.bb_embs
-        side_chain_embs = batch_data.side_chain_embs
+        bb_embs = batch_data.backbone_angle_encoding
+        side_chain_embs = batch_data.side_chain_angle_encoding
 
         device = z.device
 
@@ -432,6 +432,7 @@ class ProNet(nn.Module):
             feature1 = torch.cat((self.feature1(dist, angle1), self.feature1(dist, angle2), self.feature1(dist, angle3)),1)
 
         elif self.level == 'aminoacid':
+            #print("num_nodes:", num_nodes)
             refi = (i-1)%num_nodes
 
             refj0 = (j-1)%num_nodes
@@ -452,12 +453,14 @@ class ProNet(nn.Module):
             feature1 = self.feature1(dist, tau)
 
         # Interaction blocks.
+        idx = 0
         for interaction_block in self.interaction_blocks:
             if self.data_augment_eachlayer:
                 # add gaussian noise to features
                 gaussian_noise = torch.clip(torch.empty(x.shape).to(device).normal_(mean=0.0, std=0.025), min=-0.1, max=0.1)
                 x += gaussian_noise
             x = interaction_block(x, feature0, feature1, pos_emb, edge_index, batch)
+            idx += 1
 
         y = scatter(x, batch, dim=0)
 
