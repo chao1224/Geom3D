@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser()
 # about seed and basic info
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--device", type=int, default=0)
+parser.add_argument("--data_root")
 
 parser.add_argument(
     "--model_3d",
@@ -102,6 +103,9 @@ parser.add_argument("--LEP_droph", dest="LEP_droph", action="store_true")
 parser.add_argument("--LEP_useh", dest="LEP_droph", action="store_false")
 parser.set_defaults(LEP_droph=False)
 
+# for GeneOntology
+parser.add_argument("--GO_level", default="mf", choices=["mf", "bp", "cc"])
+
 # for MoleculeNet
 parser.add_argument("--moleculenet_num_conformers", type=int, default=10)
 
@@ -116,6 +120,7 @@ parser.add_argument("--lr_scale", type=float, default=1)
 parser.add_argument("--decay", type=float, default=0)
 parser.add_argument("--print_every_epoch", type=int, default=1)
 parser.add_argument("--loss", type=str, default="mae", choices=["mse", "mae"])
+parser.add_argument("--optimizer", type=str, default="Adam", choices=["Adam", "SGD"])
 parser.add_argument("--lr_scheduler", type=str, default="CosineAnnealingLR")
 parser.add_argument("--lr_decay_factor", type=float, default=0.5)
 parser.add_argument("--lr_decay_step_size", type=int, default=100)
@@ -239,9 +244,29 @@ parser.add_argument("--Equiformer_irreps_in", type=str, default="5x0e")
 parser.add_argument("--Equiformer_num_basis", type=int, default=128)
 parser.add_argument("--Equiformer_hyperparameter", type=int, default=0)
 
+# for GVP
+parser.add_argument("--num_positional_embeddings", type=int, default=16)
+parser.add_argument("--top_k", type=int, default=30)
+parser.add_argument("--num_rbf", type=int, default=16)
+
 # for ProNet
 parser.add_argument("--ProNet_level", type=str, default="aminoacid", choices=["aminoacid", "backbone", "allatom"])
 parser.add_argument("--ProNet_dropout", type=float, default=0.3)
+
+# for CDConv
+parser.add_argument("--CDConv_radius", type=float, default=4)
+parser.add_argument("--CDConv_kernel_size", type=int, default=21)
+parser.add_argument("--CDConv_kernel_channels", type=int, nargs="+", default=[24])
+parser.add_argument("--CDConv_geometric_raddi_coeff", type=int, nargs="+", default=[2, 3, 4, 5])
+parser.add_argument("--CDConv_channels", type=int, nargs="+", default=[256, 512, 1024, 2048])
+parser.add_argument("--CDConv_base_width", type=int, default=64)
+
+# for GearNet
+parser.add_argument("--num_relation", type=int, default=7)
+parser.add_argument("--GearNet_readout", type=str, default="sum")
+parser.add_argument("--GearNet_dropout", type=float, default=0)
+parser.add_argument("--GearNet_edge_input_dim", type=int)
+parser.add_argument("--GearNet_num_angle_bin", type=int)
 
 # data augmentation tricks, see appendix E in the paper (https://openreview.net/pdf?id=9X-hgLDLYkQ)
 parser.add_argument('--mask', action='store_true')

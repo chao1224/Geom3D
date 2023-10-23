@@ -53,11 +53,15 @@ from Geom3D.datasets.dataset_OneAtom import MoleculeDatasetOneAtom
 from Geom3D.datasets.dataset_2D_Dense import MoleculeDataset2DDense
 
 # For protein
-from Geom3D.datasets.dataset_EC import DatasetEC
 from Geom3D.datasets.dataset_FOLD import DatasetFOLD
-from Geom3D.datasets.datasetFOLD_GVP import DatasetFOLD_GVP
 from Geom3D.datasets.dataset_FOLD_GearNet import DatasetFOLDGearNet
-from Geom3D.datasets.dataset_FOLD_CDConv import DatasetFOLD_CDConv
+from Geom3D.datasets.dataset_ECSingle import DatasetECSingle
+from Geom3D.datasets.dataset_ECMultiple import DatasetECMultiple
+from Geom3D.datasets.dataset_GO import DatasetGO
+from Geom3D.datasets.dataset_GVP import DatasetGVP
+from Geom3D.datasets.dataset_GO_GearNet import DatasetGOGearNet
+from Geom3D.datasets.dataset_ECMultiple_GearNet import DatasetECMultipleGearNet
+from Geom3D.datasets.dataset_ECSingle_GearNet import DatasetECSingleGearNet
 
 # For 2D SSL
 from Geom3D.datasets.dataset_2D_Contextual import MoleculeContextualDataset

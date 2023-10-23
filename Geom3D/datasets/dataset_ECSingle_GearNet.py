@@ -13,12 +13,12 @@ from torch_geometric.data import Data
 from torch_geometric.data import InMemoryDataset
 
 
-class DatasetFOLDGearNet(InMemoryDataset):
+class DatasetECSingleGearNet(InMemoryDataset):
     def __init__(self, root, transform=None, pre_transform=None, pre_filter=None, split='train'):
         self.split = split
         self.root = root
 
-        super(DatasetFOLDGearNet, self).__init__(
+        super(DatasetECSingleGearNet, self).__init__(
             root, transform, pre_transform, pre_filter)
         
         self.transform, self.pre_transform, self.pre_filter = transform, pre_transform, pre_filter
@@ -26,7 +26,7 @@ class DatasetFOLDGearNet(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        name = 'processed_FOLD_GearNet'
+        name = 'processed_GearNet_ECSingle'
         return osp.join(self.root, name, self.split)
 
     @property
@@ -84,8 +84,8 @@ class DatasetFOLDGearNet(InMemoryDataset):
         return_data.num_residue = protein.num_residue
         return_data.num_node = protein.num_node
         return_data.num_edge = protein.num_edge
-        return_data.x = atom_type  # This is important to hack the code
-        return_data.node_feature = F.one_hot(atom_type, num_classes=21)
+        return_data.x = residue_type  # This is important to hack the code
+        return_data.node_feature = residue_feature
         return_data.num_relation = protein.num_relation
         return return_data
 
@@ -102,33 +102,48 @@ class DatasetFOLDGearNet(InMemoryDataset):
             edge_feature="gearnet")
 
         # Load the file with the list of functions.
-        classes_ = {}
-        with open(self.root+"/class_map.txt", 'r') as mFile:
+        functions_ = []
+        with open(self.root+"/unique_functions.txt", 'r') as mFile:
             for line in mFile:
-                lineList = line.rstrip().split('\t')
-                classes_[lineList[0]] = int(lineList[1])
-
+                functions_.append(line.rstrip())
+        
         # Get the file list.
+        if self.split == "Train":
+            splitFile = "/training.txt"
+        elif self.split == "Val":
+            splitFile = "/validation.txt"
+        elif self.split == "Test":
+            splitFile = "/testing.txt"
+
+        proteinNames_ = []
         fileList_ = []
-        cathegories_ = []
-        with open(self.root+"/"+self.split+".txt", 'r') as mFile:
-            for curLine in mFile:
-                splitLine = curLine.rstrip().split('\t')
-                curClass = classes_[splitLine[-1]]
-                fileList_.append(self.root+"/"+self.split+"/"+splitLine[0])
-                cathegories_.append(curClass)
+        with open(self.root+splitFile, 'r') as mFile:
+            for line in mFile:
+                proteinNames_.append(line.rstrip())
+                fileList_.append(self.root+"/data/"+line.rstrip())
+        
+        # Load the functions.
+        print("Reading protein functions")
+        protFunct_ = {}
+        with open(self.root+"/chain_functions.txt", 'r') as mFile:
+            for line in mFile:
+                splitLine = line.rstrip().split(',')
+                if splitLine[0] in proteinNames_: 
+                    protFunct_[splitLine[0]] = int(splitLine[1])
 
         # Load the dataset
         print("Reading the data")
+        print(self.split)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             data_list = []
             for fileIter, curFile in tqdm(enumerate(fileList_)):
+                #print(curFile)
                 fileName = curFile.split('/')[-1]
-                curProtein = self.protein_to_graph(curFile+".hdf5", graph_construction_model=graph_construction_model)
-                # curProtein.id = fileName           
-                curProtein.y = torch.tensor(cathegories_[fileIter])
-                if not curProtein.num_node is None:
+                curProtein = self.protein_to_graph(curFile+".hdf5", graph_construction_model=graph_construction_model) 
+                #curProtein.id = fileName           
+                curProtein.y = torch.tensor(protFunct_[proteinNames_[fileIter]])
+                if not curProtein.x is None:
                     data_list.append(curProtein)     
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])

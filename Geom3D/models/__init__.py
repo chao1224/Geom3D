@@ -21,9 +21,10 @@ from .Graphormer import Graphormer
 from .TransformerM import TransformerM
 from .Equiformer import EquiformerEnergy, EquiformerEnergyForce, EquiformerEnergyPeriodic
 
-from .GVP import GVP_GNN
-from .GearNet import GearNet
+from .GVP import GVP_GNN, MQAModel
+from .GearNet import GearNetIEConv
 from .ProNet import ProNet
+from .CDConv import CD_Convolution
 
 from .BERT import BertForSequenceRegression
 
