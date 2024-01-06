@@ -2,6 +2,7 @@
 
 Authors: Shengchao Liu, Weitao Du, Yanjing Li, Zhuoxinran Li, Zhiling Zheng, Chenru Duan, Zhiming Ma, Omar Yaghi, Anima Anandkumar, Christian Borgs, Jennifer Chayes, Hongyu Guo, Jian Tang
 
+[[NeurIPS 2023 Dataset and Benchmark](https://openreview.net/forum?id=ygXSNrIU1p)]
 [[ArXiv](https://arxiv.org/abs/2306.09375)]
 
 This is **Geom3D**, a platfrom for geometric modeling on 3D structures:
@@ -194,10 +195,12 @@ Checkpoints for all the pretraining and downstream tasks will be released soon.
 Feel free to cite this work if you find it useful to you!
 
 ```
-@article{liu2023symmetry,
+@inproceedings{
+    liu2023symmetryinformed,
     title={Symmetry-Informed Geometric Representation for Molecules, Proteins, and Crystalline Materials},
-    author={Liu, Shengchao and Du, Weitao and Li, Yanjing and Li, Zhuoxinran and Zheng, Zhiling and Duan, Chenru and Ma, Zhiming and Yaghi, Omar and Anandkumar, Anima and Borgs, Christian and others},
-    journal={arXiv preprint arXiv:2306.09375},
-    year={2023}
+    author={Shengchao Liu and weitao Du and Yanjing Li and Zhuoxinran Li and Zhiling Zheng and Chenru Duan and Zhi-Ming Ma and Omar M. Yaghi and Anima Anandkumar and Christian Borgs and Jennifer T Chayes and Hongyu Guo and Jian Tang},
+    booktitle={Thirty-seventh Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+    year={2023},
+    url={https://openreview.net/forum?id=ygXSNrIU1p}
 }
 ```
