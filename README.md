@@ -2,7 +2,7 @@
 
 Authors: Shengchao Liu, Weitao Du, Yanjing Li, Zhuoxinran Li, Zhiling Zheng, Chenru Duan, Zhiming Ma, Omar Yaghi, Anima Anandkumar, Christian Borgs, Jennifer Chayes, Hongyu Guo, Jian Tang
 
-[[NeurIPS 2023 Dataset and Benchmark](https://openreview.net/forum?id=ygXSNrIU1p)]
+[[NeurIPS 2023](https://openreview.net/forum?id=ygXSNrIU1p)]
 [[ArXiv](https://arxiv.org/abs/2306.09375)]
 
 This is **Geom3D**, a platfrom for geometric modeling on 3D structures:
